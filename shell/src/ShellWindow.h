@@ -45,6 +45,7 @@ private:
   QWidget *buildRecipes();
   QWidget *buildWizard();
   void refreshShopping();
+  void refreshLocalLine();
   void addShoppingItem();
   void removeShoppingItem(int index);
   void loadRoute();
@@ -76,6 +77,7 @@ private:
   QLabel *m_roomValue = nullptr;
   QLabel *m_weatherStatus = nullptr;
   QLabel *m_weatherDetail = nullptr;
+  QLabel *m_homeLocal = nullptr;
   QComboBox *m_weatherLook = nullptr;
   QStackedWidget *m_body = nullptr;
   QStackedWidget *m_wizard = nullptr;

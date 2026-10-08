@@ -10,7 +10,7 @@ HavenOS is not an Android launcher, not an Android app, and not a browser simula
 
 ## Status
 
-Hardware feasibility is in progress. There is no flashable image yet, and nothing here is firmware you can download.
+The shell in `shell/` is a desktop prototype. It is not a flashable image, and nothing here is firmware you can download.
 
 Flashing requires the exact model to be confirmed, and an explicit go-ahead. Do not flash a device from this repository.
 

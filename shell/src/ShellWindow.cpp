@@ -15,6 +15,7 @@
 #include <QPainterPath>
 #include <QPaintEvent>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStyle>
@@ -54,6 +55,8 @@ QString pageStyle() {
       "}"
       "QWidget#nav { background: transparent; border: none; }"
       "QWidget#nav QPushButton { min-width: 0px; padding: 0 16px; }"
+      "QScrollArea { background: transparent; border: none; }"
+      "QScrollArea > QWidget > QWidget { background: transparent; }"
       "QFrame#heroScrim {"
       "  background-color: rgba(10, 12, 16, 228);"
       "  border: 1px solid rgba(244, 239, 230, 50);"
@@ -741,6 +744,13 @@ QWidget *ShellWindow::buildHome() {
                              QStringLiteral("No live charge. This slot is a placeholder.")));
   layout->addLayout(cards, 0);
 
+  m_homeLocal = new QLabel;
+  m_homeLocal->setObjectName(QStringLiteral("statusLine"));
+  m_homeLocal->setWordWrap(true);
+  m_homeLocal->setFont(interFont(16));
+  layout->addWidget(m_homeLocal, 0, Qt::AlignLeft);
+  refreshLocalLine();
+
   auto *foot = new QLabel(QStringLiteral("Wi-Fi and Matter are not connected."));
   foot->setObjectName(QStringLiteral("statusLine"));
   foot->setFont(interFont(16));
@@ -1048,6 +1058,26 @@ void ShellWindow::refreshTimerUi() {
   if (m_timerPause != nullptr) {
     m_timerPause->setEnabled(m_timerRunning);
   }
+  refreshLocalLine();
+}
+
+void ShellWindow::refreshLocalLine() {
+  if (m_homeLocal == nullptr) {
+    return;
+  }
+  QString timer = QStringLiteral("ready");
+  if (m_timerRunning) {
+    timer = QStringLiteral("running");
+  } else if (m_timerRemaining == 0) {
+    timer = QStringLiteral("finished");
+  } else if (m_timerRemaining != m_timerDuration) {
+    timer = QStringLiteral("paused");
+  }
+  const int count = m_shopping.size();
+  const QString list = count == 0 ? QStringLiteral("Nothing saved on the shopping list.")
+                       : count == 1 ? QStringLiteral("1 shopping item saved.")
+                                    : QStringLiteral("%1 shopping items saved.").arg(count);
+  m_homeLocal->setText(QStringLiteral("Timer %1. %2 Both stay on this computer.").arg(timer, list));
 }
 
 void ShellWindow::setTimerDuration(int seconds) {
@@ -1194,6 +1224,8 @@ void ShellWindow::refreshShopping() {
     empty->setFont(interFont(18));
     empty->setStyleSheet(QStringLiteral("color: #c4b49a;"));
     m_shoppingRows->addWidget(empty, 0, Qt::AlignLeft);
+    m_shoppingRows->addStretch(1);
+    refreshLocalLine();
     return;
   }
   for (int i = 0; i < m_shopping.size(); ++i) {
@@ -1210,6 +1242,8 @@ void ShellWindow::refreshShopping() {
     rowLayout->addWidget(remove);
     m_shoppingRows->addWidget(row);
   }
+  m_shoppingRows->addStretch(1);
+  refreshLocalLine();
 }
 
 void ShellWindow::addShoppingItem() {
@@ -1260,12 +1294,17 @@ QWidget *ShellWindow::buildShopping() {
   connect(m_shoppingEntry, &QLineEdit::returnPressed, this, [this] { addShoppingItem(); });
 
   m_shopping = Profile::loadShopping();
+  auto *scroll = new QScrollArea;
+  scroll->setWidgetResizable(true);
+  scroll->setFrameShape(QFrame::NoFrame);
+  scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   auto *rows = new QWidget;
+  rows->setAttribute(Qt::WA_TranslucentBackground);
   m_shoppingRows = new QVBoxLayout(rows);
   m_shoppingRows->setContentsMargins(0, 0, 0, 0);
   m_shoppingRows->setSpacing(12);
-  layout->addWidget(rows);
-  layout->addStretch(1);
+  scroll->setWidget(rows);
+  layout->addWidget(scroll, 1);
   refreshShopping();
   return page;
 }
