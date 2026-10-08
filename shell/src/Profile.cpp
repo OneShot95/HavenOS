@@ -1,6 +1,8 @@
 #include "Profile.h"
 
+#include <QMetaType>
 #include <QSettings>
+#include <QVariant>
 
 #include <functional>
 
@@ -51,11 +53,19 @@ void Profile::save() const {
 QStringList Profile::loadShopping() {
   QStringList items;
   withStore([&items](QSettings &store) {
-    items = store.value(QStringLiteral("shopping")).toStringList();
+    const QVariant value = store.value(QStringLiteral("shopping"));
+    if (value.metaType().id() == QMetaType::QStringList) {
+      items = value.toStringList();
+    } else {
+      items = value.toString().split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    }
   });
   QStringList cleaned;
   for (const QString &item : items) {
-    const QString trimmed = item.trimmed();
+    QString trimmed = item.simplified();
+    if (trimmed.size() > 80) {
+      trimmed = trimmed.left(80).trimmed();
+    }
     if (!trimmed.isEmpty()) {
       cleaned.push_back(trimmed);
     }
@@ -66,13 +76,17 @@ QStringList Profile::loadShopping() {
 void Profile::saveShopping(const QStringList &items) {
   QStringList cleaned;
   for (const QString &item : items) {
-    const QString trimmed = item.trimmed();
+    QString trimmed = item.simplified();
+    if (trimmed.size() > 80) {
+      trimmed = trimmed.left(80).trimmed();
+    }
     if (!trimmed.isEmpty()) {
       cleaned.push_back(trimmed);
     }
   }
-  withStore([&cleaned](QSettings &store) {
-    store.setValue(QStringLiteral("shopping"), cleaned);
+  const QString packed = cleaned.join(QLatin1Char('\n'));
+  withStore([&packed](QSettings &store) {
+    store.setValue(QStringLiteral("shopping"), packed);
     store.sync();
   });
 }

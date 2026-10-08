@@ -80,6 +80,8 @@ private:
   QLabel *m_weatherStatus = nullptr;
   QLabel *m_weatherDetail = nullptr;
   QLabel *m_homeLocal = nullptr;
+  QLabel *m_settingsNote = nullptr;
+  QPushButton *m_shoppingAdd = nullptr;
   QComboBox *m_weatherLook = nullptr;
   QStackedWidget *m_body = nullptr;
   QStackedWidget *m_wizard = nullptr;
@@ -93,6 +95,7 @@ private:
   QLabel *m_timerState = nullptr;
   QPushButton *m_timerStart = nullptr;
   QPushButton *m_timerPause = nullptr;
+  QVector<QPushButton *> m_timerPresets;
   QVBoxLayout *m_shoppingRows = nullptr;
   QLineEdit *m_shoppingEntry = nullptr;
   QStringList m_shopping;

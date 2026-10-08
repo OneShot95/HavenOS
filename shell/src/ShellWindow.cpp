@@ -399,7 +399,12 @@ void ShellWindow::choosePaint() {
     return;
   }
   m_paint = PaintGrade::Light;
-  m_paintNote = QStringLiteral("Light paint. Kept for a small device.");
+  if (bytes < 0) {
+    m_paintNote =
+        QStringLiteral("Light paint. Memory could not be read, so the small-device path stays.");
+  } else {
+    m_paintNote = QStringLiteral("Light paint. Kept when memory is under 2 GB.");
+  }
 }
 
 int ShellWindow::effectiveHour() const {
@@ -651,60 +656,70 @@ void paintLiftShadow(QPainter &painter, const QRect &rect, int radius, bool rich
 }  // namespace
 
 void ShellWindow::paintLiftedShadows(QPainter &painter) {
+  const bool rich = m_paint == PaintGrade::Rich;
+  auto shadowOf = [&](QWidget *widget, int radius) {
+    if (widget == nullptr || !widget->isVisible()) {
+      return;
+    }
+    const QPoint origin = widget->mapTo(this, QPoint(0, 0));
+    const QRect bounds(origin, widget->size());
+    painter.save();
+    for (QWidget *ancestor = widget->parentWidget(); ancestor != nullptr && ancestor != this;
+         ancestor = ancestor->parentWidget()) {
+      auto *scroll = qobject_cast<QScrollArea *>(ancestor);
+      if (scroll == nullptr || scroll->viewport() == nullptr) {
+        continue;
+      }
+      const QPoint topLeft = scroll->viewport()->mapTo(this, QPoint(0, 0));
+      const QRect view(topLeft, scroll->viewport()->size());
+      if (!view.intersects(bounds)) {
+        painter.restore();
+        return;
+      }
+      painter.setClipRect(view);
+      break;
+    }
+    paintLiftShadow(painter, bounds, radius, rich);
+    painter.restore();
+  };
+
   const auto frames = findChildren<QFrame *>();
   for (QFrame *frame : frames) {
-    if (!frame->isVisible()) {
-      continue;
-    }
     const QString name = frame->objectName();
     if (name != QLatin1String("slot") && name != QLatin1String("heroScrim")) {
       continue;
     }
-    const QPoint origin = frame->mapTo(this, QPoint(0, 0));
     const int radius = qMin(28, qMin(frame->width(), frame->height()) / 2);
-    paintLiftShadow(painter, QRect(origin, frame->size()), radius, m_paint == PaintGrade::Rich);
+    shadowOf(frame, radius);
   }
 
   const auto buttons = findChildren<QPushButton *>();
   for (QPushButton *button : buttons) {
-    if (!button->isVisible()) {
-      continue;
-    }
     if (button->parentWidget() != nullptr &&
         button->parentWidget()->objectName() == QLatin1String("nav")) {
       continue;
     }
-    const QPoint origin = button->mapTo(this, QPoint(0, 0));
-    paintLiftShadow(painter, QRect(origin, button->size()), button->height() / 2,
-                    m_paint == PaintGrade::Rich);
+    shadowOf(button, button->height() / 2);
   }
 
   const auto lines = findChildren<QLabel *>();
   for (QLabel *label : lines) {
-    if (!label->isVisible() || label->objectName() != QLatin1String("statusLine")) {
+    if (label->objectName() != QLatin1String("statusLine")) {
       continue;
     }
-    const QPoint origin = label->mapTo(this, QPoint(0, 0));
-    paintLiftShadow(painter, QRect(origin, label->size()), label->height() / 2,
-                    m_paint == PaintGrade::Rich);
+    shadowOf(label, label->height() / 2);
   }
 
   if (QWidget *banner = findChild<QWidget *>(QStringLiteral("banner"))) {
-    if (banner->isVisible()) {
-      const QPoint origin = banner->mapTo(this, QPoint(0, 0));
-      paintLiftShadow(painter, QRect(origin, banner->size()), banner->height() / 2,
-                      m_paint == PaintGrade::Rich);
-    }
+    shadowOf(banner, banner->height() / 2);
   }
-
-  if (m_weatherLook != nullptr && m_weatherLook->isVisible()) {
-    const QPoint origin = m_weatherLook->mapTo(this, QPoint(0, 0));
-    paintLiftShadow(painter, QRect(origin, m_weatherLook->size()), m_weatherLook->height() / 2,
-                    m_paint == PaintGrade::Rich);
-  }
+  shadowOf(m_weatherLook, m_weatherLook == nullptr ? 0 : m_weatherLook->height() / 2);
 }
 
 void ShellWindow::setPage(int index) {
+  if (m_stack == nullptr || index < 0 || index >= m_stack->count()) {
+    return;
+  }
   m_stack->setCurrentIndex(index);
   for (int i = 0; i < m_nav.size(); ++i) {
     m_nav.at(i)->setProperty("active", i == index);
@@ -825,7 +840,9 @@ QWidget *ShellWindow::buildHome() {
 
   m_homeValue = new QLabel(QStringLiteral("Not set"));
   m_homeValue->setFont(interFont(32));
-  m_homeValue->setAlignment(Qt::AlignRight);
+  m_homeValue->setAlignment(Qt::AlignRight | Qt::AlignTop);
+  m_homeValue->setWordWrap(true);
+  m_homeValue->setMaximumWidth(360);
 
   auto *roomEyebrow = new QLabel(QStringLiteral("ROOM"));
   roomEyebrow->setFont(eyebrowFont);
@@ -834,6 +851,8 @@ QWidget *ShellWindow::buildHome() {
   m_roomValue = new QLabel(QStringLiteral("Not set"));
   m_roomValue->setFont(interFont(22, QFont::Medium));
   m_roomValue->setAlignment(Qt::AlignRight);
+  m_roomValue->setWordWrap(true);
+  m_roomValue->setMaximumWidth(360);
 
   m_weekday = new QLabel;
   m_weekday->setFont(interFont(22, QFont::Medium));
@@ -996,6 +1015,7 @@ QWidget *ShellWindow::buildSettings() {
   profileRow->setSpacing(12);
   m_settingsName = new QLineEdit;
   m_settingsName->setPlaceholderText(QStringLiteral("Home name"));
+  m_settingsName->setMaxLength(48);
   m_settingsName->setMinimumHeight(64);
   m_settingsRoom = new QComboBox;
   m_settingsRoom->setFont(interFont(20, QFont::Medium));
@@ -1010,16 +1030,31 @@ QWidget *ShellWindow::buildSettings() {
   profileRow->addWidget(m_settingsRoom);
   profileRow->addWidget(saveHome);
   layout->addLayout(profileRow);
+  m_settingsNote = new QLabel;
+  m_settingsNote->setFont(interFont(16));
+  m_settingsNote->setStyleSheet(QStringLiteral("color: #c4b49a;"));
+  m_settingsNote->setWordWrap(true);
+  layout->addWidget(m_settingsNote, 0, Qt::AlignLeft);
   connect(saveHome, &QPushButton::clicked, this, [this] {
-    const QString name = m_settingsName->text().trimmed();
+    QString name = m_settingsName->text().simplified();
+    if (name.size() > 48) {
+      name = name.left(48).trimmed();
+    }
     const QString room = m_settingsRoom->currentText();
     if (name.isEmpty() || !Profile::rooms().contains(room)) {
+      if (m_settingsNote != nullptr) {
+        m_settingsNote->setText(QStringLiteral("Type a home name to save it on this computer."));
+      }
       return;
     }
     m_profile.homeName = name;
     m_profile.room = room;
     m_profile.save();
+    m_settingsName->setText(name);
     applyProfile();
+    if (m_settingsNote != nullptr) {
+      m_settingsNote->setText(QStringLiteral("Saved on this computer."));
+    }
   });
 
   auto *lookLabel = new QLabel(QStringLiteral("Weather look"));
@@ -1160,9 +1195,18 @@ void ShellWindow::showShell() {
 }
 
 void ShellWindow::finishWizard() {
-  const QString name = m_wizardName == nullptr ? QString() : m_wizardName->text().trimmed();
+  QString name = m_wizardName == nullptr ? QString() : m_wizardName->text().simplified();
+  if (name.size() > 48) {
+    name = name.left(48).trimmed();
+  }
   if (name.isEmpty() || !Profile::rooms().contains(m_wizardRoom)) {
+    if (m_wizard != nullptr) {
+      m_wizard->setCurrentIndex(name.isEmpty() ? 1 : 2);
+    }
     return;
+  }
+  if (m_wizardName != nullptr) {
+    m_wizardName->setText(name);
   }
   m_profile.homeName = name;
   m_profile.room = m_wizardRoom;
@@ -1194,6 +1238,14 @@ void ShellWindow::refreshTimerUi() {
   }
   if (m_timerPause != nullptr) {
     m_timerPause->setEnabled(m_timerRunning);
+  }
+  for (QPushButton *button : m_timerPresets) {
+    const int presetSeconds = button->property("seconds").toInt();
+    button->setEnabled(!m_timerRunning);
+    button->setProperty("active", presetSeconds == m_timerDuration);
+    button->style()->unpolish(button);
+    button->style()->polish(button);
+    button->update();
   }
   refreshLocalLine();
 }
@@ -1281,6 +1333,8 @@ QWidget *ShellWindow::buildTimer() {
     auto *button = new QPushButton(choice.first);
     button->setFont(interFont(20, QFont::Medium));
     const int seconds = choice.second;
+    button->setProperty("seconds", seconds);
+    m_timerPresets.push_back(button);
     connect(button, &QPushButton::clicked, this, [this, seconds] { setTimerDuration(seconds); });
     presets->addWidget(button);
   }
@@ -1362,6 +1416,12 @@ void ShellWindow::refreshShopping() {
     empty->setStyleSheet(QStringLiteral("color: #c4b49a;"));
     m_shoppingRows->addWidget(empty, 0, Qt::AlignLeft);
     m_shoppingRows->addStretch(1);
+    if (m_shoppingEntry != nullptr) {
+      m_shoppingEntry->setEnabled(true);
+    }
+    if (m_shoppingAdd != nullptr) {
+      m_shoppingAdd->setEnabled(true);
+    }
     refreshLocalLine();
     return;
   }
@@ -1372,6 +1432,7 @@ void ShellWindow::refreshShopping() {
     rowLayout->setContentsMargins(28, 8, 16, 8);
     auto *title = new QLabel(m_shopping.at(i));
     title->setFont(interFont(20, QFont::Medium));
+    title->setWordWrap(true);
     auto *remove = new QPushButton(QStringLiteral("Remove"));
     remove->setFont(interFont(18, QFont::Medium));
     connect(remove, &QPushButton::clicked, this, [this, i] { removeShoppingItem(i); });
@@ -1380,6 +1441,13 @@ void ShellWindow::refreshShopping() {
     m_shoppingRows->addWidget(row);
   }
   m_shoppingRows->addStretch(1);
+  const bool roomLeft = m_shopping.size() < 40;
+  if (m_shoppingEntry != nullptr) {
+    m_shoppingEntry->setEnabled(roomLeft);
+  }
+  if (m_shoppingAdd != nullptr) {
+    m_shoppingAdd->setEnabled(roomLeft);
+  }
   refreshLocalLine();
 }
 
@@ -1387,8 +1455,8 @@ void ShellWindow::addShoppingItem() {
   if (m_shoppingEntry == nullptr) {
     return;
   }
-  const QString item = m_shoppingEntry->text().trimmed();
-  if (item.isEmpty()) {
+  const QString item = m_shoppingEntry->text().simplified();
+  if (item.isEmpty() || m_shopping.size() >= 40) {
     return;
   }
   m_shopping.push_back(item);
@@ -1421,13 +1489,14 @@ QWidget *ShellWindow::buildShopping() {
   entryRow->setSpacing(12);
   m_shoppingEntry = new QLineEdit;
   m_shoppingEntry->setPlaceholderText(QStringLiteral("Add an item"));
+  m_shoppingEntry->setMaxLength(80);
   m_shoppingEntry->setMinimumHeight(64);
-  auto *add = new QPushButton(QStringLiteral("Add"));
-  add->setFont(interFont(20, QFont::Medium));
+  m_shoppingAdd = new QPushButton(QStringLiteral("Add"));
+  m_shoppingAdd->setFont(interFont(20, QFont::Medium));
   entryRow->addWidget(m_shoppingEntry, 1);
-  entryRow->addWidget(add);
+  entryRow->addWidget(m_shoppingAdd);
   layout->addLayout(entryRow);
-  connect(add, &QPushButton::clicked, this, [this] { addShoppingItem(); });
+  connect(m_shoppingAdd, &QPushButton::clicked, this, [this] { addShoppingItem(); });
   connect(m_shoppingEntry, &QLineEdit::returnPressed, this, [this] { addShoppingItem(); });
 
   m_shopping = Profile::loadShopping();
@@ -1435,6 +1504,8 @@ QWidget *ShellWindow::buildShopping() {
   scroll->setWidgetResizable(true);
   scroll->setFrameShape(QFrame::NoFrame);
   scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  scroll->viewport()->setAutoFillBackground(false);
+  scroll->viewport()->setAttribute(Qt::WA_TranslucentBackground);
   auto *rows = new QWidget;
   rows->setAttribute(Qt::WA_TranslucentBackground);
   m_shoppingRows = new QVBoxLayout(rows);
@@ -1536,6 +1607,7 @@ QWidget *ShellWindow::buildWizard() {
               QStringLiteral("This name is saved on this computer. It is not looked up online."));
   m_wizardName = new QLineEdit;
   m_wizardName->setPlaceholderText(QStringLiteral("Home name"));
+  m_wizardName->setMaxLength(48);
   m_wizardName->setMinimumHeight(64);
   nameLayout->addWidget(m_wizardName);
   auto *nameRow = new QHBoxLayout;

@@ -10,7 +10,9 @@ The program does not choose a Qt platform plugin. A desktop session uses the nor
 
 ## Paint path
 
-Both paths are software paint in this same process. There is no shader and no second toolkit. The Nexus 7 path stays light: grouper, tilapia, or 1.5 GB of memory or less. A computer with at least 2 GB, and no Nexus 7 model name, uses a richer sky and a second shadow. If the memory cannot be read, the light path is kept.
+Both paths are software paint in this same process. There is no shader and no second toolkit. The Nexus 7 path stays light, and so does any computer under 2 GB. A computer with at least 2 GB, and no Nexus 7 model name, uses a richer sky and a second shadow. If the memory cannot be read, the light path is kept.
+
+Home names stay within 48 characters. Shopping items stay within 80 characters, up to 40 of them, and are saved as plain lines so a comma in an item is kept.
 
 ```
 HAVEN_PAINT=light
