@@ -11,6 +11,8 @@ find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets)
 
 add_executable(haven-shell
   src/main.cpp
+  src/Profile.cpp
+  src/Profile.h
   src/ShellWindow.cpp
   src/ShellWindow.h
 )

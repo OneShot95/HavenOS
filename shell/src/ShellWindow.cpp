@@ -1,6 +1,8 @@
 #include "ShellWindow.h"
 
 #include <QComboBox>
+#include <QGridLayout>
+#include <QLineEdit>
 #include <QDateTime>
 #include <QFont>
 #include <QFrame>
@@ -94,6 +96,15 @@ QString pageStyle() {
       "  padding: 0 28px;"
       "}"
       "QComboBox::drop-down { border: none; width: 36px; }"
+      "QLineEdit {"
+      "  background-color: #241f1a;"
+      "  color: #f4efe6;"
+      "  border: 1px solid rgba(244, 239, 230, 48);"
+      "  border-radius: 999px;"
+      "  min-height: 64px;"
+      "  padding: 0 24px;"
+      "  selection-background-color: #342a20;"
+      "}"
       "QComboBox QAbstractItemView {"
       "  background-color: #1e1b17;"
       "  color: #f4efe6;"
@@ -213,15 +224,28 @@ ShellWindow::ShellWindow(QWidget *parent) : QWidget(parent) {
   root->setContentsMargins(0, 0, 0, 0);
   root->setSpacing(0);
   root->addWidget(buildBanner());
-  root->addWidget(buildNav());
+
+  m_body = new QStackedWidget;
+  m_body->setAttribute(Qt::WA_TranslucentBackground);
+  m_body->addWidget(buildWizard());
+
+  auto *shell = new QWidget;
+  shell->setAttribute(Qt::WA_TranslucentBackground);
+  auto *shellLayout = new QVBoxLayout(shell);
+  shellLayout->setContentsMargins(0, 0, 0, 0);
+  shellLayout->setSpacing(0);
+  shellLayout->addWidget(buildNav());
 
   m_stack = new QStackedWidget;
   m_stack->setAttribute(Qt::WA_TranslucentBackground);
   m_stack->addWidget(buildHome());
+  m_stack->addWidget(buildTimer());
   m_stack->addWidget(buildApps());
   m_stack->addWidget(buildSettings());
   m_stack->addWidget(buildPower());
-  root->addWidget(m_stack, 1);
+  shellLayout->addWidget(m_stack, 1);
+  m_body->addWidget(shell);
+  root->addWidget(m_body, 1);
 
   setPage(0);
   updateClock();
@@ -237,9 +261,20 @@ ShellWindow::ShellWindow(QWidget *parent) : QWidget(parent) {
     m_weatherLook->setCurrentIndex(static_cast<int>(initial));
   }
   setWeatherLook(initial);
+  loadRoute();
 
   auto *clockTimer = new QTimer(this);
-  connect(clockTimer, &QTimer::timeout, this, [this] { updateClock(); });
+  connect(clockTimer, &QTimer::timeout, this, [this] {
+    updateClock();
+    if (!m_timerRunning || m_timerRemaining <= 0) {
+      return;
+    }
+    --m_timerRemaining;
+    if (m_timerRemaining == 0) {
+      m_timerRunning = false;
+    }
+    refreshTimerUi();
+  });
   clockTimer->start(1000);
 
   auto *sceneTimer = new QTimer(this);
@@ -585,6 +620,7 @@ QWidget *ShellWindow::buildNav() {
 
   const QStringList labels = {
       QStringLiteral("Home"),
+      QStringLiteral("Timer"),
       QStringLiteral("Apps"),
       QStringLiteral("Settings"),
       QStringLiteral("Power"),
@@ -655,9 +691,17 @@ QWidget *ShellWindow::buildHome() {
   homeEyebrow->setStyleSheet(QStringLiteral("color: #d08a45;"));
   homeEyebrow->setAlignment(Qt::AlignRight);
 
-  auto *homeValue = new QLabel(QStringLiteral("Not set"));
-  homeValue->setFont(interFont(32));
-  homeValue->setAlignment(Qt::AlignRight);
+  m_homeValue = new QLabel(QStringLiteral("Not set"));
+  m_homeValue->setFont(interFont(32));
+  m_homeValue->setAlignment(Qt::AlignRight);
+
+  auto *roomEyebrow = new QLabel(QStringLiteral("ROOM"));
+  roomEyebrow->setFont(eyebrowFont);
+  roomEyebrow->setStyleSheet(QStringLiteral("color: #d08a45;"));
+  roomEyebrow->setAlignment(Qt::AlignRight);
+  m_roomValue = new QLabel(QStringLiteral("Not set"));
+  m_roomValue->setFont(interFont(22, QFont::Medium));
+  m_roomValue->setAlignment(Qt::AlignRight);
 
   m_weekday = new QLabel;
   m_weekday->setFont(interFont(22, QFont::Medium));
@@ -668,7 +712,10 @@ QWidget *ShellWindow::buildHome() {
   m_date->setAlignment(Qt::AlignRight);
 
   meta->addWidget(homeEyebrow);
-  meta->addWidget(homeValue);
+  meta->addWidget(m_homeValue);
+  meta->addSpacing(8);
+  meta->addWidget(roomEyebrow);
+  meta->addWidget(m_roomValue);
   meta->addSpacing(14);
   meta->addWidget(m_weekday);
   meta->addWidget(m_date);
@@ -790,6 +837,40 @@ QWidget *ShellWindow::buildSettings() {
   body->setFont(interFont(18));
   layout->addWidget(body, 0, Qt::AlignLeft);
 
+  auto *homeLabel = new QLabel(QStringLiteral("Home"));
+  homeLabel->setFont(interFont(18, QFont::Medium));
+  layout->addWidget(homeLabel, 0, Qt::AlignLeft);
+
+  auto *profileRow = new QHBoxLayout;
+  profileRow->setSpacing(12);
+  m_settingsName = new QLineEdit;
+  m_settingsName->setPlaceholderText(QStringLiteral("Home name"));
+  m_settingsName->setMinimumHeight(64);
+  m_settingsRoom = new QComboBox;
+  m_settingsRoom->setFont(interFont(20, QFont::Medium));
+  m_settingsRoom->setMinimumHeight(64);
+  m_settingsRoom->setMinimumWidth(220);
+  for (const QString &room : Profile::rooms()) {
+    m_settingsRoom->addItem(room);
+  }
+  auto *saveHome = new QPushButton(QStringLiteral("Save home"));
+  saveHome->setFont(interFont(20, QFont::Medium));
+  profileRow->addWidget(m_settingsName, 1);
+  profileRow->addWidget(m_settingsRoom);
+  profileRow->addWidget(saveHome);
+  layout->addLayout(profileRow);
+  connect(saveHome, &QPushButton::clicked, this, [this] {
+    const QString name = m_settingsName->text().trimmed();
+    const QString room = m_settingsRoom->currentText();
+    if (name.isEmpty() || !Profile::rooms().contains(room)) {
+      return;
+    }
+    m_profile.homeName = name;
+    m_profile.room = room;
+    m_profile.save();
+    applyProfile();
+  });
+
   auto *lookLabel = new QLabel(QStringLiteral("Weather look"));
   lookLabel->setFont(interFont(18, QFont::Medium));
   lookLabel->setStyleSheet(QStringLiteral("color: #f4efe6;"));
@@ -849,5 +930,364 @@ QWidget *ShellWindow::buildPower() {
     layout->addWidget(button, 0, Qt::AlignLeft);
   }
   layout->addStretch(1);
+  return page;
+}
+
+void ShellWindow::loadRoute() {
+  const bool forceWizard = qEnvironmentVariableIsSet("HAVEN_FORCE_WIZARD");
+  const QString seededName = QString::fromLocal8Bit(qgetenv("HAVEN_PROFILE_NAME")).trimmed();
+  const QString seededRoom = QString::fromLocal8Bit(qgetenv("HAVEN_PROFILE_ROOM")).trimmed();
+  if (!seededName.isEmpty() && Profile::rooms().contains(seededRoom)) {
+    m_profile.homeName = seededName;
+    m_profile.room = seededRoom;
+    m_profile.save();
+  } else {
+    m_profile = Profile::load();
+  }
+
+  if (forceWizard || !m_profile.isComplete()) {
+    showWizard();
+  } else {
+    showShell();
+  }
+
+  const QString open = QString::fromLatin1(qgetenv("HAVEN_OPEN")).trimmed().toLower();
+  if (!forceWizard && m_profile.isComplete() && open == QLatin1String("timer")) {
+    setPage(1);
+  }
+  if (qEnvironmentVariableIsSet("HAVEN_TIMER_START")) {
+    m_timerDuration = 300;
+    m_timerRemaining = 300;
+    m_timerRunning = true;
+    refreshTimerUi();
+  }
+}
+
+void ShellWindow::applyProfile() {
+  const QString name = m_profile.homeName.trimmed().isEmpty() ? QStringLiteral("Not set")
+                                                              : m_profile.homeName.trimmed();
+  const QString room = m_profile.room.trimmed().isEmpty() ? QStringLiteral("Not set")
+                                                          : m_profile.room.trimmed();
+  if (m_homeValue != nullptr) {
+    m_homeValue->setText(name);
+  }
+  if (m_roomValue != nullptr) {
+    m_roomValue->setText(room);
+  }
+  if (m_settingsName != nullptr && m_profile.isComplete()) {
+    m_settingsName->setText(m_profile.homeName.trimmed());
+  }
+  if (m_settingsRoom != nullptr && Profile::rooms().contains(m_profile.room)) {
+    const QSignalBlocker blocker(m_settingsRoom);
+    m_settingsRoom->setCurrentText(m_profile.room);
+  }
+}
+
+void ShellWindow::showWizard() {
+  if (m_wizard != nullptr) {
+    m_wizard->setCurrentIndex(0);
+  }
+  if (m_body != nullptr) {
+    m_body->setCurrentIndex(0);
+  }
+}
+
+void ShellWindow::showShell() {
+  applyProfile();
+  if (m_body != nullptr) {
+    m_body->setCurrentIndex(1);
+  }
+  setPage(0);
+}
+
+void ShellWindow::finishWizard() {
+  const QString name = m_wizardName == nullptr ? QString() : m_wizardName->text().trimmed();
+  if (name.isEmpty() || !Profile::rooms().contains(m_wizardRoom)) {
+    return;
+  }
+  m_profile.homeName = name;
+  m_profile.room = m_wizardRoom;
+  m_profile.save();
+  showShell();
+}
+
+void ShellWindow::refreshTimerUi() {
+  const int minutes = m_timerRemaining / 60;
+  const int seconds = m_timerRemaining % 60;
+  if (m_timerDigits != nullptr) {
+    m_timerDigits->setText(QStringLiteral("%1:%2")
+                               .arg(minutes, 2, 10, QLatin1Char('0'))
+                               .arg(seconds, 2, 10, QLatin1Char('0')));
+  }
+  QString state = QStringLiteral("Ready");
+  if (m_timerRunning) {
+    state = QStringLiteral("Running");
+  } else if (m_timerRemaining == 0) {
+    state = QStringLiteral("Finished");
+  } else if (m_timerRemaining != m_timerDuration) {
+    state = QStringLiteral("Paused");
+  }
+  if (m_timerState != nullptr) {
+    m_timerState->setText(state);
+  }
+  if (m_timerStart != nullptr) {
+    m_timerStart->setEnabled(!m_timerRunning);
+  }
+  if (m_timerPause != nullptr) {
+    m_timerPause->setEnabled(m_timerRunning);
+  }
+}
+
+void ShellWindow::setTimerDuration(int seconds) {
+  if (m_timerRunning || seconds <= 0) {
+    return;
+  }
+  m_timerDuration = seconds;
+  m_timerRemaining = seconds;
+  refreshTimerUi();
+}
+
+void ShellWindow::startTimer() {
+  if (m_timerRemaining <= 0) {
+    m_timerRemaining = m_timerDuration;
+  }
+  m_timerRunning = true;
+  refreshTimerUi();
+}
+
+void ShellWindow::pauseTimer() {
+  m_timerRunning = false;
+  refreshTimerUi();
+}
+
+void ShellWindow::cancelTimer() {
+  m_timerRunning = false;
+  m_timerRemaining = m_timerDuration;
+  refreshTimerUi();
+}
+
+QWidget *ShellWindow::buildTimer() {
+  auto *page = new QWidget;
+  auto *layout = beginPage(page, QStringLiteral("Timer"));
+
+  m_timerState = new QLabel(QStringLiteral("Ready"));
+  m_timerState->setObjectName(QStringLiteral("statusLine"));
+  m_timerState->setFont(interFont(18, QFont::Medium));
+  layout->addWidget(m_timerState, 0, Qt::AlignLeft);
+
+  auto *face = new QFrame;
+  face->setObjectName(QStringLiteral("slot"));
+  auto *faceLayout = new QVBoxLayout(face);
+  faceLayout->setContentsMargins(32, 28, 32, 28);
+  m_timerDigits = new QLabel(QStringLiteral("05:00"));
+  m_timerDigits->setAlignment(Qt::AlignCenter);
+  m_timerDigits->setFont(interFont(84));
+  auto *note = new QLabel(QStringLiteral("Offline. This timer only counts down on this computer."));
+  note->setAlignment(Qt::AlignCenter);
+  note->setWordWrap(true);
+  note->setFont(interFont(16));
+  note->setStyleSheet(QStringLiteral("color: #c4b49a;"));
+  faceLayout->addWidget(m_timerDigits);
+  faceLayout->addWidget(note);
+  layout->addWidget(face);
+
+  auto *presets = new QHBoxLayout;
+  presets->setSpacing(12);
+  const QList<QPair<QString, int>> choices = {
+      {QStringLiteral("1 min"), 60},
+      {QStringLiteral("5 min"), 300},
+      {QStringLiteral("10 min"), 600},
+  };
+  for (const auto &choice : choices) {
+    auto *button = new QPushButton(choice.first);
+    button->setFont(interFont(20, QFont::Medium));
+    const int seconds = choice.second;
+    connect(button, &QPushButton::clicked, this, [this, seconds] { setTimerDuration(seconds); });
+    presets->addWidget(button);
+  }
+  presets->addStretch(1);
+  layout->addLayout(presets);
+
+  auto *controls = new QHBoxLayout;
+  controls->setSpacing(12);
+  m_timerStart = new QPushButton(QStringLiteral("Start"));
+  m_timerPause = new QPushButton(QStringLiteral("Pause"));
+  auto *cancel = new QPushButton(QStringLiteral("Cancel"));
+  for (QPushButton *button : {m_timerStart, m_timerPause, cancel}) {
+    button->setFont(interFont(20, QFont::Medium));
+    button->setMinimumWidth(180);
+  }
+  m_timerPause->setEnabled(false);
+  connect(m_timerStart, &QPushButton::clicked, this, [this] { startTimer(); });
+  connect(m_timerPause, &QPushButton::clicked, this, [this] { pauseTimer(); });
+  connect(cancel, &QPushButton::clicked, this, [this] { cancelTimer(); });
+  controls->addWidget(m_timerStart);
+  controls->addWidget(m_timerPause);
+  controls->addWidget(cancel);
+  controls->addStretch(1);
+  layout->addLayout(controls);
+  layout->addStretch(1);
+  refreshTimerUi();
+  return page;
+}
+
+QWidget *ShellWindow::buildWizard() {
+  auto *page = new QWidget;
+  page->setAttribute(Qt::WA_TranslucentBackground);
+  auto *outer = new QVBoxLayout(page);
+  outer->setContentsMargins(48, 12, 48, 28);
+
+  m_wizard = new QStackedWidget;
+  m_wizard->setAttribute(Qt::WA_TranslucentBackground);
+
+  auto addStep = [this](const QString &kicker, const QString &title, const QString &body) {
+    auto *step = new QWidget;
+    step->setAttribute(Qt::WA_TranslucentBackground);
+    auto *layout = new QVBoxLayout(step);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addStretch(1);
+    auto *card = new QFrame;
+    card->setObjectName(QStringLiteral("slot"));
+    card->setMaximumWidth(860);
+    auto *cardLayout = new QVBoxLayout(card);
+    cardLayout->setContentsMargins(36, 28, 36, 28);
+    cardLayout->setSpacing(14);
+    auto *stepLabel = new QLabel(kicker);
+    stepLabel->setFont(interFont(14, QFont::DemiBold));
+    stepLabel->setStyleSheet(QStringLiteral("color: #d08a45;"));
+    auto *heading = new QLabel(title);
+    heading->setFont(interFont(32));
+    heading->setWordWrap(true);
+    auto *copy = new QLabel(body);
+    copy->setWordWrap(true);
+    copy->setFont(interFont(18));
+    copy->setStyleSheet(QStringLiteral("color: #c4b49a;"));
+    cardLayout->addWidget(stepLabel);
+    cardLayout->addWidget(heading);
+    cardLayout->addWidget(copy);
+    layout->addWidget(card, 0, Qt::AlignHCenter);
+    layout->addStretch(1);
+    m_wizard->addWidget(step);
+    return cardLayout;
+  };
+
+  auto *welcome = addStep(QStringLiteral("Step 1 of 6"), QStringLiteral("Welcome"),
+                          QStringLiteral("This is a desktop prototype, not a flashable OS image, and it is not "
+                                         "running on the tablet. English only. Next you can name the home and pick a room."));
+  auto *welcomeNext = new QPushButton(QStringLiteral("Continue"));
+  welcomeNext->setFont(interFont(20, QFont::Medium));
+  welcomeNext->setMinimumWidth(220);
+  connect(welcomeNext, &QPushButton::clicked, this, [this] { m_wizard->setCurrentIndex(1); });
+  welcome->addWidget(welcomeNext, 0, Qt::AlignLeft);
+
+  auto *nameLayout =
+      addStep(QStringLiteral("Step 2 of 6"), QStringLiteral("Home name"),
+              QStringLiteral("This name is saved on this computer. It is not looked up online."));
+  m_wizardName = new QLineEdit;
+  m_wizardName->setPlaceholderText(QStringLiteral("Home name"));
+  m_wizardName->setMinimumHeight(64);
+  nameLayout->addWidget(m_wizardName);
+  auto *nameRow = new QHBoxLayout;
+  auto *nameBack = new QPushButton(QStringLiteral("Back"));
+  auto *nameNext = new QPushButton(QStringLiteral("Continue"));
+  for (QPushButton *button : {nameBack, nameNext}) {
+    button->setFont(interFont(20, QFont::Medium));
+    button->setMinimumWidth(180);
+  }
+  nameNext->setEnabled(false);
+  connect(m_wizardName, &QLineEdit::textChanged, nameNext, [nameNext](const QString &text) {
+    nameNext->setEnabled(!text.trimmed().isEmpty());
+  });
+  connect(nameBack, &QPushButton::clicked, this, [this] { m_wizard->setCurrentIndex(0); });
+  connect(nameNext, &QPushButton::clicked, this, [this] { m_wizard->setCurrentIndex(2); });
+  nameRow->addWidget(nameBack);
+  nameRow->addWidget(nameNext);
+  nameRow->addStretch(1);
+  nameLayout->addLayout(nameRow);
+
+  auto *roomLayout = addStep(QStringLiteral("Step 3 of 6"), QStringLiteral("Room"),
+                             QStringLiteral("Pick the room this panel stands in. Nothing here is detected."));
+  auto *grid = new QGridLayout;
+  grid->setSpacing(12);
+  int column = 0;
+  int gridRow = 0;
+  for (const QString &room : Profile::rooms()) {
+    auto *button = new QPushButton(room);
+    button->setFont(interFont(20, QFont::Medium));
+    button->setMinimumHeight(64);
+    m_roomButtons.push_back(button);
+    connect(button, &QPushButton::clicked, this, [this, button, room] {
+      m_wizardRoom = room;
+      for (QPushButton *other : m_roomButtons) {
+        other->setProperty("active", other == button);
+        other->style()->unpolish(other);
+        other->style()->polish(other);
+        other->update();
+      }
+      if (m_roomNext != nullptr) {
+        m_roomNext->setEnabled(true);
+      }
+    });
+    grid->addWidget(button, gridRow, column);
+    ++column;
+    if (column == 3) {
+      column = 0;
+      ++gridRow;
+    }
+  }
+  roomLayout->addLayout(grid);
+  auto *roomRow = new QHBoxLayout;
+  auto *roomBack = new QPushButton(QStringLiteral("Back"));
+  m_roomNext = new QPushButton(QStringLiteral("Continue"));
+  for (QPushButton *button : {roomBack, m_roomNext}) {
+    button->setFont(interFont(20, QFont::Medium));
+    button->setMinimumWidth(180);
+  }
+  m_roomNext->setEnabled(false);
+  connect(roomBack, &QPushButton::clicked, this, [this] { m_wizard->setCurrentIndex(1); });
+  connect(m_roomNext, &QPushButton::clicked, this, [this] { m_wizard->setCurrentIndex(3); });
+  roomRow->addWidget(roomBack);
+  roomRow->addWidget(m_roomNext);
+  roomRow->addStretch(1);
+  roomLayout->addLayout(roomRow);
+
+  const QString skipBody = QStringLiteral("Not available in this desktop prototype.");
+  struct Skip {
+    const char *kicker;
+    const char *title;
+    int index;
+    bool last;
+  };
+  const Skip skips[] = {
+      {"Step 4 of 6", "Wi-Fi", 3, false},
+      {"Step 5 of 6", "Matter", 4, false},
+      {"Step 6 of 6", "AI", 5, true},
+  };
+  for (const Skip &skip : skips) {
+    auto *skipLayout = addStep(QString::fromUtf8(skip.kicker), QString::fromUtf8(skip.title), skipBody);
+    auto *skipRow = new QHBoxLayout;
+    auto *back = new QPushButton(QStringLiteral("Back"));
+    auto *next = new QPushButton(skip.last ? QStringLiteral("Finish") : QStringLiteral("Skip"));
+    for (QPushButton *button : {back, next}) {
+      button->setFont(interFont(20, QFont::Medium));
+      button->setMinimumWidth(180);
+    }
+    const int index = skip.index;
+    const bool last = skip.last;
+    connect(back, &QPushButton::clicked, this, [this, index] { m_wizard->setCurrentIndex(index - 1); });
+    connect(next, &QPushButton::clicked, this, [this, index, last] {
+      if (last) {
+        finishWizard();
+      } else {
+        m_wizard->setCurrentIndex(index + 1);
+      }
+    });
+    skipRow->addWidget(back);
+    skipRow->addWidget(next);
+    skipRow->addStretch(1);
+    skipLayout->addLayout(skipRow);
+  }
+
+  outer->addWidget(m_wizard, 1);
   return page;
 }
