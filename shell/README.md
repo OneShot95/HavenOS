@@ -8,6 +8,15 @@ Haven Store is a sample list written into the prototype. It has no prices and ca
 
 The program does not choose a Qt platform plugin. A desktop session uses the normal X11 or Wayland plugin. Set `QT_QPA_PLATFORM` only from the environment (for example `offscreen` in the smoke test below).
 
+## Paint path
+
+Both paths are software paint in this same process. There is no shader and no second toolkit. The Nexus 7 path stays light: grouper, tilapia, or 1.5 GB of memory or less. A computer with at least 2 GB, and no Nexus 7 model name, uses a richer sky and a second shadow. If the memory cannot be read, the light path is kept.
+
+```
+HAVEN_PAINT=light
+HAVEN_PAINT=rich
+```
+
 ## Build
 
 From the repository root:

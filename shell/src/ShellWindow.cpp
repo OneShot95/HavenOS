@@ -4,6 +4,7 @@
 #include <QGridLayout>
 #include <QLineEdit>
 #include <QDateTime>
+#include <QFile>
 #include <QFont>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -18,9 +19,14 @@
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QStackedWidget>
+#include <QSysInfo>
 #include <QStyle>
 #include <QTimer>
 #include <QVBoxLayout>
+
+#if defined(Q_OS_MACOS)
+#include <sys/sysctl.h>
+#endif
 
 namespace {
 
@@ -221,6 +227,55 @@ ShellWindow::WeatherLook weatherFromHook(const QByteArray &value) {
   return Look::Off;
 }
 
+bool looksLikeNexus7() {
+  QString blob;
+  const QStringList paths = {QStringLiteral("/proc/device-tree/model"),
+                             QStringLiteral("/sys/firmware/devicetree/base/model"),
+                             QStringLiteral("/proc/cpuinfo")};
+  for (const QString &path : paths) {
+    QFile file(path);
+    if (file.open(QIODevice::ReadOnly)) {
+      blob += QString::fromLatin1(file.read(2048));
+    }
+  }
+  blob += QSysInfo::prettyProductName();
+  const QString lower = blob.toLower();
+  return lower.contains(QStringLiteral("grouper")) || lower.contains(QStringLiteral("tilapia")) ||
+         lower.contains(QStringLiteral("nexus 7")) || lower.contains(QStringLiteral("nakasi")) ||
+         lower.contains(QStringLiteral("bach"));
+}
+
+qint64 installedMemoryBytes() {
+  QFile mem(QStringLiteral("/proc/meminfo"));
+  if (mem.open(QIODevice::ReadOnly)) {
+    const QString text = QString::fromLatin1(mem.read(256));
+    const int mark = text.indexOf(QStringLiteral("MemTotal:"));
+    if (mark >= 0) {
+      QString digits;
+      for (int i = mark; i < text.size(); ++i) {
+        if (text.at(i).isDigit()) {
+          digits.append(text.at(i));
+        } else if (!digits.isEmpty()) {
+          break;
+        }
+      }
+      bool ok = false;
+      const qint64 kb = digits.toLongLong(&ok);
+      if (ok && kb > 0) {
+        return kb * 1024;
+      }
+    }
+  }
+#if defined(Q_OS_MACOS)
+  qint64 bytes = 0;
+  size_t len = sizeof(bytes);
+  if (sysctlbyname("hw.memsize", &bytes, &len, nullptr, 0) == 0 && bytes > 0) {
+    return bytes;
+  }
+#endif
+  return -1;
+}
+
 void paintCloud(QPainter &painter, const QRectF &blob, const QColor &color) {
   painter.setPen(Qt::NoPen);
   painter.setBrush(color);
@@ -238,6 +293,7 @@ ShellWindow::ShellWindow(QWidget *parent) : QWidget(parent) {
   setAutoFillBackground(false);
   setStyleSheet(pageStyle());
   readPreviewHooks();
+  choosePaint();
 
   auto *root = new QVBoxLayout(this);
   root->setContentsMargins(0, 0, 0, 0);
@@ -315,6 +371,35 @@ void ShellWindow::readPreviewHooks() {
   if (ok && hour >= 0 && hour <= 23) {
     m_previewHour = hour;
   }
+}
+
+void ShellWindow::choosePaint() {
+  const QString forced = QString::fromLatin1(qgetenv("HAVEN_PAINT")).trimmed().toLower();
+  if (forced == QLatin1String("rich")) {
+    m_paint = PaintGrade::Rich;
+    m_paintNote = QStringLiteral("Richer paint. Chosen for this run. Not a GPU mode.");
+    return;
+  }
+  if (forced == QLatin1String("light")) {
+    m_paint = PaintGrade::Light;
+    m_paintNote = QStringLiteral("Light paint. Chosen for this run.");
+    return;
+  }
+  if (looksLikeNexus7()) {
+    m_paint = PaintGrade::Light;
+    m_paintNote = QStringLiteral("Light paint. The Nexus 7 path stays light.");
+    return;
+  }
+  const qint64 bytes = installedMemoryBytes();
+  const qint64 twoGib = 2LL * 1024LL * 1024LL * 1024LL;
+  if (bytes >= twoGib) {
+    m_paint = PaintGrade::Rich;
+    m_paintNote =
+        QStringLiteral("Richer paint. This computer has room for it. Not the Nexus 7 path.");
+    return;
+  }
+  m_paint = PaintGrade::Light;
+  m_paintNote = QStringLiteral("Light paint. Kept for a small device.");
 }
 
 int ShellWindow::effectiveHour() const {
@@ -417,6 +502,13 @@ void ShellWindow::paintEvent(QPaintEvent *event) {
     break;
   }
   const QPointF bodyCenter(bodyX * sx, bodyY * sy);
+  const bool rich = m_paint == PaintGrade::Rich;
+  if (rich) {
+    QColor glow = scene.glow;
+    glow.setAlpha(70);
+    painter.setBrush(glow);
+    painter.drawEllipse(bodyCenter, bodyR * 2.6 * sx, bodyR * 2.6 * sy);
+  }
   painter.setBrush(scene.body);
   painter.drawEllipse(bodyCenter, bodyR * sx, bodyR * sy);
   painter.setBrush(Qt::NoBrush);
@@ -433,6 +525,13 @@ void ShellWindow::paintEvent(QPaintEvent *event) {
                                {180, 320}, {340, 300}, {640, 240}, {760, 300}, {1120, 220}, {1200, 280}};
     for (const auto &star : stars) {
       painter.drawEllipse(QPointF(star[0] * sx, star[1] * sy), 1.6 * sx, 1.6 * sy);
+    }
+    if (rich) {
+      const int more[8][2] = {{220, 160}, {500, 140}, {940, 230}, {1080, 160},
+                               {300, 280}, {820, 260}, {1180, 190}, {460, 220}};
+      for (const auto &star : more) {
+        painter.drawEllipse(QPointF(star[0] * sx, star[1] * sy), 2.2 * sx, 2.2 * sy);
+      }
     }
   }
 
@@ -451,13 +550,17 @@ void ShellWindow::paintEvent(QPaintEvent *event) {
     paintCloud(painter, QRectF(480 * sx, 200 * sy, 250 * sx, 64 * sy), cloudColor);
     paintCloud(painter, QRectF(680 * sx, 250 * sy, 230 * sx, 58 * sy), cloudColor);
     paintCloud(painter, QRectF(560 * sx, 310 * sy, 200 * sx, 50 * sy), cloudColor);
+    if (rich) {
+      paintCloud(painter, QRectF(360 * sx, 240 * sy, 180 * sx, 48 * sy), cloudColor);
+    }
   }
 
   if (m_weather == WeatherLook::Rain || m_weather == WeatherLook::Storm) {
     const QColor wash = m_weather == WeatherLook::Storm ? QColor(12, 16, 32, 80) : QColor(30, 48, 72, 40);
     painter.fillRect(bounds.adjusted(0, static_cast<int>(150 * sy), 0, static_cast<int>(-260 * sy)), wash);
     painter.setPen(QPen(QColor(232, 238, 244, m_weather == WeatherLook::Storm ? 150 : 190), 2));
-    for (int i = 0; i < 56; ++i) {
+    const int drops = rich ? 84 : 56;
+    for (int i = 0; i < drops; ++i) {
       const qreal x = ((i * 83) % 1280) * sx;
       const qreal y = (170 + (i * 47) % 300) * sy;
       painter.drawLine(QPointF(x, y), QPointF(x - 14 * sx, y + 28 * sy));
@@ -531,11 +634,15 @@ void ShellWindow::paintEvent(QPaintEvent *event) {
 
 namespace {
 
-void paintLiftShadow(QPainter &painter, const QRect &rect, int radius) {
+void paintLiftShadow(QPainter &painter, const QRect &rect, int radius, bool rich) {
   if (rect.isEmpty()) {
     return;
   }
   painter.setPen(Qt::NoPen);
+  if (rich) {
+    painter.setBrush(QColor(6, 8, 12, 28));
+    painter.drawRoundedRect(rect.adjusted(-6, -2, 6, 16).translated(0, 10), radius, radius);
+  }
   painter.setBrush(QColor(6, 8, 12, 54));
   const QRect shadow = rect.adjusted(-2, 0, 2, 8).translated(0, 6);
   painter.drawRoundedRect(shadow, radius, radius);
@@ -555,7 +662,7 @@ void ShellWindow::paintLiftedShadows(QPainter &painter) {
     }
     const QPoint origin = frame->mapTo(this, QPoint(0, 0));
     const int radius = qMin(28, qMin(frame->width(), frame->height()) / 2);
-    paintLiftShadow(painter, QRect(origin, frame->size()), radius);
+    paintLiftShadow(painter, QRect(origin, frame->size()), radius, m_paint == PaintGrade::Rich);
   }
 
   const auto buttons = findChildren<QPushButton *>();
@@ -568,7 +675,8 @@ void ShellWindow::paintLiftedShadows(QPainter &painter) {
       continue;
     }
     const QPoint origin = button->mapTo(this, QPoint(0, 0));
-    paintLiftShadow(painter, QRect(origin, button->size()), button->height() / 2);
+    paintLiftShadow(painter, QRect(origin, button->size()), button->height() / 2,
+                    m_paint == PaintGrade::Rich);
   }
 
   const auto lines = findChildren<QLabel *>();
@@ -577,19 +685,22 @@ void ShellWindow::paintLiftedShadows(QPainter &painter) {
       continue;
     }
     const QPoint origin = label->mapTo(this, QPoint(0, 0));
-    paintLiftShadow(painter, QRect(origin, label->size()), label->height() / 2);
+    paintLiftShadow(painter, QRect(origin, label->size()), label->height() / 2,
+                    m_paint == PaintGrade::Rich);
   }
 
   if (QWidget *banner = findChild<QWidget *>(QStringLiteral("banner"))) {
     if (banner->isVisible()) {
       const QPoint origin = banner->mapTo(this, QPoint(0, 0));
-      paintLiftShadow(painter, QRect(origin, banner->size()), banner->height() / 2);
+      paintLiftShadow(painter, QRect(origin, banner->size()), banner->height() / 2,
+                      m_paint == PaintGrade::Rich);
     }
   }
 
   if (m_weatherLook != nullptr && m_weatherLook->isVisible()) {
     const QPoint origin = m_weatherLook->mapTo(this, QPoint(0, 0));
-    paintLiftShadow(painter, QRect(origin, m_weatherLook->size()), m_weatherLook->height() / 2);
+    paintLiftShadow(painter, QRect(origin, m_weatherLook->size()), m_weatherLook->height() / 2,
+                    m_paint == PaintGrade::Rich);
   }
 }
 
@@ -765,6 +876,12 @@ QWidget *ShellWindow::buildHome() {
   layout->addWidget(m_homeLocal, 0, Qt::AlignLeft);
   refreshLocalLine();
 
+  auto *paintNote = new QLabel(m_paintNote);
+  paintNote->setObjectName(QStringLiteral("statusLine"));
+  paintNote->setWordWrap(true);
+  paintNote->setFont(interFont(16));
+  layout->addWidget(paintNote, 0, Qt::AlignLeft);
+
   auto *foot = new QLabel(QStringLiteral("Wi-Fi and Matter are not connected."));
   foot->setObjectName(QStringLiteral("statusLine"));
   foot->setFont(interFont(16));
@@ -864,6 +981,12 @@ QWidget *ShellWindow::buildSettings() {
   body->setWordWrap(true);
   body->setFont(interFont(18));
   layout->addWidget(body, 0, Qt::AlignLeft);
+
+  auto *paintNote = new QLabel(m_paintNote);
+  paintNote->setObjectName(QStringLiteral("statusLine"));
+  paintNote->setWordWrap(true);
+  paintNote->setFont(interFont(16));
+  layout->addWidget(paintNote, 0, Qt::AlignLeft);
 
   auto *homeLabel = new QLabel(QStringLiteral("Home"));
   homeLabel->setFont(interFont(18, QFont::Medium));

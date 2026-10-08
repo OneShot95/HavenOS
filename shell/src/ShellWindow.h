@@ -20,6 +20,7 @@ class ShellWindow : public QWidget {
 public:
   enum class DayBand { Night, Dawn, Morning, Afternoon, Dusk };
   enum class WeatherLook { Off, Clear, Cloudy, Rain, Snow, Fog, Storm };
+  enum class PaintGrade { Light, Rich };
 
   explicit ShellWindow(QWidget *parent = nullptr);
 
@@ -64,6 +65,7 @@ private:
   QPushButton *makeNavButton(const QString &text);
   QVBoxLayout *beginPage(QWidget *page, const QString &heading);
   void readPreviewHooks();
+  void choosePaint();
   void paintLiftedShadows(QPainter &painter);
 
   QStackedWidget *m_stack = nullptr;
@@ -100,5 +102,7 @@ private:
   Profile m_profile;
   DayBand m_band = DayBand::Night;
   WeatherLook m_weather = WeatherLook::Off;
+  PaintGrade m_paint = PaintGrade::Light;
+  QString m_paintNote;
   int m_previewHour = -1;
 };

@@ -42,7 +42,7 @@ QML can be revisited only as an experiment inside the same Qt 6 process, behind 
 
 ### Desktop prototype that exists now
 
-The program is in `shell/` on the repository `main` branch. The binary name is `haven-shell`. It has not been booted on a Nexus 7.
+The program is in `shell/` on the repository `main` branch. The binary name is `haven-shell`. It has not been booted on a Nexus 7. The same process keeps a light software paint for the Nexus 7, or for 1.5 GB of memory or less. A computer with at least 2 GB can use a richer software paint. That choice is labelled in the window. It is not a shader path and not a second toolkit.
 
 The window title is “HavenOS — desktop prototype”. A banner states that it is a desktop prototype, that it is not running on the tablet, and that it is not a flashable OS image. The clock and date are the computer’s clock, labelled as local time from this computer. The first launch asks for a home name and a room, saved on this computer. Weather, devices, and battery are placeholders labelled “Not connected”. A weather look can change the painted sky and is labelled as a preview. The home footer says Wi-Fi and Matter are not connected. Home also repeats the timer state and the shopping count, and says both stay on the computer. Timer, Store, List, and Recipes are offline pages in the same process. Store has no prices and cannot take an order. Apps says nothing is installed. Settings says nothing on the page is live. Power lists Shut down, Restart, and Sleep as disabled buttons and says those actions are not implemented. The prototype cannot launch apps and cannot shut down, restart, or sleep a device.
 
