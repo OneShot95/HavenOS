@@ -1,6 +1,6 @@
 # HavenOS shell
 
-Desktop UI prototype, not a flashable OS image. One Qt 6 Widgets process paints a 1280×800 home panel with the raster engine. It does not build a kernel, a disk image, or a tablet rootfs.
+Desktop UI prototype, not a flashable OS image. One Qt 6 Widgets process paints a 1280×800 home panel with the software raster engine. No shaders, no GPU scene, and no extra image files. It does not build a kernel, a disk image, or a tablet rootfs.
 
 The clock and date use the computer's clock. The painted sky follows that clock and is checked about once a minute. Weather, devices, battery, Wi-Fi, and Matter are not connected. The first launch asks for a home name and a room, then skips Wi-Fi, Matter, and AI because they are not available in this desktop prototype. Settings can change the saved name and room. Timer is an offline countdown. Settings also has a Weather look control. Off leaves the weather card as Not connected. A preview only changes the painted sky.
 

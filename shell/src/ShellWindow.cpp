@@ -24,8 +24,8 @@
 
 namespace {
 
-constexpr auto kBannerLine1 = "Desktop prototype — not running on the tablet.";
-constexpr auto kBannerLine2 = "UI prototype, not a flashable OS image.";
+constexpr auto kBanner =
+    "Desktop prototype. Not running on the tablet. Not a flashable image.";
 
 struct ScenePalette {
   QColor top;
@@ -49,23 +49,36 @@ QString pageStyle() {
       "QWidget { background-color: transparent; color: #f4efe6; }"
       "QLabel { background: transparent; }"
       "QWidget#banner {"
-      "  background-color: rgba(28, 24, 20, 242);"
-      "  border: 1px solid rgba(244, 239, 230, 48);"
+      "  background-color: rgba(16, 14, 12, 214);"
+      "  border: 1px solid rgba(244, 239, 230, 36);"
       "  border-radius: 999px;"
       "}"
       "QWidget#nav { background: transparent; border: none; }"
-      "QWidget#nav QPushButton { min-width: 0px; padding: 0 16px; }"
+      "QWidget#nav QPushButton {"
+      "  background: transparent;"
+      "  color: #e4d5c4;"
+      "  border: 1px solid transparent;"
+      "  min-width: 0px;"
+      "  padding: 0 16px;"
+      "}"
+      "QWidget#nav QPushButton[active=\"true\"] {"
+      "  background-color: rgba(58, 42, 28, 235);"
+      "  border: 1px solid #e0a15a;"
+      "  color: #fff8ef;"
+      "}"
       "QScrollArea { background: transparent; border: none; }"
       "QScrollArea > QWidget > QWidget { background: transparent; }"
       "QFrame#heroScrim {"
-      "  background-color: rgba(10, 12, 16, 228);"
-      "  border: 1px solid rgba(244, 239, 230, 50);"
-      "  border-radius: 36px;"
+      "  background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+      "    stop:0 rgba(18, 20, 26, 226), stop:1 rgba(8, 10, 14, 238));"
+      "  border: 1px solid rgba(244, 239, 230, 40);"
+      "  border-radius: 28px;"
       "}"
       "QFrame#slot {"
-      "  background-color: rgba(32, 28, 24, 242);"
-      "  border: 1px solid rgba(244, 239, 230, 48);"
-      "  border-radius: 36px;"
+      "  background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+      "    stop:0 rgba(52, 42, 34, 236), stop:1 rgba(24, 20, 16, 242));"
+      "  border: 1px solid rgba(244, 239, 230, 42);"
+      "  border-radius: 28px;"
       "}"
       "QLabel#statusLine {"
       "  background-color: rgba(12, 14, 18, 230);"
@@ -140,25 +153,25 @@ ScenePalette paletteFor(ShellWindow::DayBand band) {
   using Band = ShellWindow::DayBand;
   switch (band) {
   case Band::Night:
-    return {QColor(QStringLiteral("#070b14")), QColor(QStringLiteral("#121a30")),
-            QColor(QStringLiteral("#1a3058")), QColor(QStringLiteral("#0c1016")),
-            QColor(QStringLiteral("#f4f1e8")), QColor(QStringLiteral("#9eb4d4"))};
+    return {QColor(QStringLiteral("#070b16")), QColor(QStringLiteral("#152038")),
+            QColor(QStringLiteral("#243e62")), QColor(QStringLiteral("#10141c")),
+            QColor(QStringLiteral("#f7f3ea")), QColor(QStringLiteral("#c5d4ea"))};
   case Band::Dawn:
-    return {QColor(QStringLiteral("#1a2040")), QColor(QStringLiteral("#6a4a68")),
-            QColor(QStringLiteral("#ffc09a")), QColor(QStringLiteral("#1a1412")),
-            QColor(QStringLiteral("#ffe0c0")), QColor(QStringLiteral("#ffb088"))};
+    return {QColor(QStringLiteral("#1a2348")), QColor(QStringLiteral("#7a4868")),
+            QColor(QStringLiteral("#ffb48a")), QColor(QStringLiteral("#241612")),
+            QColor(QStringLiteral("#ffe4c4")), QColor(QStringLiteral("#ffc09a"))};
   case Band::Morning:
-    return {QColor(QStringLiteral("#163e6e")), QColor(QStringLiteral("#2f78c0")),
-            QColor(QStringLiteral("#f6d48a")), QColor(QStringLiteral("#1a2830")),
-            QColor(QStringLiteral("#fff6d2")), QColor(QStringLiteral("#ffe7a4"))};
+    return {QColor(QStringLiteral("#1a4a78")), QColor(QStringLiteral("#3c86c4")),
+            QColor(QStringLiteral("#f3c98a")), QColor(QStringLiteral("#1c2c30")),
+            QColor(QStringLiteral("#fff4cc")), QColor(QStringLiteral("#ffe3a4"))};
   case Band::Afternoon:
-    return {QColor(QStringLiteral("#1a5690")), QColor(QStringLiteral("#3d88c8")),
-            QColor(QStringLiteral("#ffe6a8")), QColor(QStringLiteral("#16303a")),
-            QColor(QStringLiteral("#fffaf0")), QColor(QStringLiteral("#fff0c2"))};
+    return {QColor(QStringLiteral("#1d5e98")), QColor(QStringLiteral("#4a92cc")),
+            QColor(QStringLiteral("#ffe0a4")), QColor(QStringLiteral("#1a3038")),
+            QColor(QStringLiteral("#fff8ea")), QColor(QStringLiteral("#ffe6b0"))};
   case Band::Dusk:
-    return {QColor(QStringLiteral("#241433")), QColor(QStringLiteral("#6a3058")),
-            QColor(QStringLiteral("#ff7a3c")), QColor(QStringLiteral("#1a1014")),
-            QColor(QStringLiteral("#ffb07a")), QColor(QStringLiteral("#ff7848"))};
+    return {QColor(QStringLiteral("#2a1638")), QColor(QStringLiteral("#723458")),
+            QColor(QStringLiteral("#ff6e38")), QColor(QStringLiteral("#1c1216")),
+            QColor(QStringLiteral("#ffb888")), QColor(QStringLiteral("#ff8a58"))};
   }
   return {};
 }
@@ -355,10 +368,9 @@ void ShellWindow::setWeatherLook(WeatherLook look) {
 void ShellWindow::paintEvent(QPaintEvent *event) {
   Q_UNUSED(event);
   QPainter painter(this);
-  painter.setRenderHint(QPainter::Antialiasing, true);
-
   const QRect bounds = rect();
   const ScenePalette scene = paletteFor(m_band);
+  painter.setRenderHint(QPainter::Antialiasing, false);
   QLinearGradient sky(bounds.topLeft(), bounds.bottomLeft());
   sky.setColorAt(0.00, scene.top);
   sky.setColorAt(0.18, scene.top);
@@ -367,15 +379,13 @@ void ShellWindow::paintEvent(QPaintEvent *event) {
   sky.setColorAt(0.70, scene.ground);
   sky.setColorAt(1.00, scene.ground.darker(140));
   painter.fillRect(bounds, sky);
+  painter.setRenderHint(QPainter::Antialiasing, true);
 
   const qreal sx = bounds.width() / 1280.0;
   const qreal sy = bounds.height() / 800.0;
   const qreal horizonY = bounds.height() * 0.72;
 
   painter.setPen(Qt::NoPen);
-  QColor glow = scene.glow;
-  glow.setAlpha(110);
-  painter.setBrush(glow);
   qreal bodyX = 700;
   qreal bodyY = 250;
   qreal bodyR = 36;
@@ -407,9 +417,14 @@ void ShellWindow::paintEvent(QPaintEvent *event) {
     break;
   }
   const QPointF bodyCenter(bodyX * sx, bodyY * sy);
-  painter.drawEllipse(bodyCenter, bodyR * 2.4 * sx, bodyR * 2.4 * sy);
   painter.setBrush(scene.body);
   painter.drawEllipse(bodyCenter, bodyR * sx, bodyR * sy);
+  painter.setBrush(Qt::NoBrush);
+  QColor ring = scene.glow;
+  ring.setAlpha(m_band == DayBand::Night ? 150 : 190);
+  painter.setPen(QPen(ring, 2.0));
+  painter.drawEllipse(bodyCenter, bodyR * 1.7 * sx, bodyR * 1.7 * sy);
+  painter.setPen(Qt::NoPen);
 
   if (m_band == DayBand::Night &&
       (m_weather == WeatherLook::Off || m_weather == WeatherLook::Clear)) {
@@ -486,6 +501,19 @@ void ShellWindow::paintEvent(QPaintEvent *event) {
     painter.drawPath(bolt2);
   }
 
+  QPainterPath farHills;
+  farHills.moveTo(0, horizonY - 28 * sy);
+  farHills.quadTo(bounds.width() * 0.28, horizonY - 78 * sy, bounds.width() * 0.56, horizonY - 24 * sy);
+  farHills.quadTo(bounds.width() * 0.82, horizonY + 4 * sy, bounds.width(), horizonY - 36 * sy);
+  farHills.lineTo(bounds.width(), bounds.height());
+  farHills.lineTo(0, bounds.height());
+  farHills.closeSubpath();
+  painter.setPen(Qt::NoPen);
+  QColor farHill = scene.ground.lighter(130);
+  farHill.setAlpha(150);
+  painter.setBrush(farHill);
+  painter.drawPath(farHills);
+
   QPainterPath hills;
   hills.moveTo(0, horizonY + 8 * sy);
   hills.quadTo(bounds.width() * 0.22, horizonY - 18 * sy, bounds.width() * 0.46, horizonY + 6 * sy);
@@ -508,24 +536,9 @@ void paintLiftShadow(QPainter &painter, const QRect &rect, int radius) {
     return;
   }
   painter.setPen(Qt::NoPen);
-  struct Layer {
-    int dx;
-    int dy;
-    int grow;
-    int alpha;
-  };
-  const Layer layers[] = {
-      {4, 14, 10, 18},
-      {3, 10, 6, 30},
-      {2, 7, 3, 44},
-      {1, 4, 1, 58},
-  };
-  for (const Layer &layer : layers) {
-    painter.setBrush(QColor(6, 8, 12, layer.alpha));
-    const QRect shadow = rect.adjusted(-layer.grow, -layer.grow / 3, layer.grow, layer.grow)
-                             .translated(layer.dx, layer.dy);
-    painter.drawRoundedRect(shadow, radius + layer.grow, radius + layer.grow);
-  }
+  painter.setBrush(QColor(6, 8, 12, 54));
+  const QRect shadow = rect.adjusted(-2, 0, 2, 8).translated(0, 6);
+  painter.drawRoundedRect(shadow, radius, radius);
 }
 
 }  // namespace
@@ -541,13 +554,17 @@ void ShellWindow::paintLiftedShadows(QPainter &painter) {
       continue;
     }
     const QPoint origin = frame->mapTo(this, QPoint(0, 0));
-    const int radius = qMin(36, qMin(frame->width(), frame->height()) / 2);
+    const int radius = qMin(28, qMin(frame->width(), frame->height()) / 2);
     paintLiftShadow(painter, QRect(origin, frame->size()), radius);
   }
 
   const auto buttons = findChildren<QPushButton *>();
   for (QPushButton *button : buttons) {
     if (!button->isVisible()) {
+      continue;
+    }
+    if (button->parentWidget() != nullptr &&
+        button->parentWidget()->objectName() == QLatin1String("nav")) {
       continue;
     }
     const QPoint origin = button->mapTo(this, QPoint(0, 0));
@@ -589,24 +606,21 @@ void ShellWindow::setPage(int index) {
 QWidget *ShellWindow::buildBanner() {
   auto *wrap = new QWidget;
   auto *wrapLayout = new QHBoxLayout(wrap);
-  wrapLayout->setContentsMargins(24, 16, 24, 6);
+  wrapLayout->setContentsMargins(28, 12, 28, 0);
 
   auto *banner = new QFrame;
   banner->setObjectName(QStringLiteral("banner"));
-  banner->setFixedHeight(72);
+  banner->setFixedHeight(48);
   auto *textCol = new QVBoxLayout(banner);
-  textCol->setContentsMargins(36, 10, 36, 10);
+  textCol->setContentsMargins(28, 0, 28, 0);
   textCol->setSpacing(0);
 
-  auto *line1 = new QLabel(QString::fromUtf8(kBannerLine1));
-  line1->setFont(interFont(18, QFont::Medium));
-  line1->setAlignment(Qt::AlignCenter);
-  auto *line2 = new QLabel(QString::fromUtf8(kBannerLine2));
-  line2->setFont(interFont(16));
-  line2->setAlignment(Qt::AlignCenter);
-  line2->setStyleSheet(QStringLiteral("color: #c4b49a;"));
-  textCol->addWidget(line1);
-  textCol->addWidget(line2);
+  auto *line = new QLabel(QString::fromUtf8(kBanner));
+  line->setFont(interFont(16, QFont::Medium));
+  line->setAlignment(Qt::AlignCenter);
+  textCol->addStretch(1);
+  textCol->addWidget(line);
+  textCol->addStretch(1);
   wrapLayout->addWidget(banner);
   return wrap;
 }
@@ -669,7 +683,7 @@ QWidget *ShellWindow::buildHome() {
   auto *timeRow = new QHBoxLayout;
   timeRow->setSpacing(10);
   m_clock = new QLabel;
-  m_clock->setFont(interFont(96));
+  m_clock->setFont(interFont(104));
   m_seconds = new QLabel;
   m_seconds->setFont(interFont(28));
   m_seconds->setStyleSheet(QStringLiteral("color: #c4b49a;"));
