@@ -2,6 +2,7 @@
 
 #include "Profile.h"
 
+#include <QStringList>
 #include <QVector>
 #include <QWidget>
 
@@ -39,7 +40,13 @@ private:
   QWidget *buildSettings();
   QWidget *buildPower();
   QWidget *buildTimer();
+  QWidget *buildStore();
+  QWidget *buildShopping();
+  QWidget *buildRecipes();
   QWidget *buildWizard();
+  void refreshShopping();
+  void addShoppingItem();
+  void removeShoppingItem(int index);
   void loadRoute();
   void applyProfile();
   void showWizard();
@@ -82,6 +89,9 @@ private:
   QLabel *m_timerState = nullptr;
   QPushButton *m_timerStart = nullptr;
   QPushButton *m_timerPause = nullptr;
+  QVBoxLayout *m_shoppingRows = nullptr;
+  QLineEdit *m_shoppingEntry = nullptr;
+  QStringList m_shopping;
   int m_timerRemaining = 300;
   int m_timerDuration = 300;
   bool m_timerRunning = false;

@@ -8,7 +8,9 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLayout>
 #include <QLinearGradient>
+#include <QList>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPaintEvent>
@@ -51,6 +53,7 @@ QString pageStyle() {
       "  border-radius: 999px;"
       "}"
       "QWidget#nav { background: transparent; border: none; }"
+      "QWidget#nav QPushButton { min-width: 0px; padding: 0 16px; }"
       "QFrame#heroScrim {"
       "  background-color: rgba(10, 12, 16, 228);"
       "  border: 1px solid rgba(244, 239, 230, 50);"
@@ -240,6 +243,9 @@ ShellWindow::ShellWindow(QWidget *parent) : QWidget(parent) {
   m_stack->setAttribute(Qt::WA_TranslucentBackground);
   m_stack->addWidget(buildHome());
   m_stack->addWidget(buildTimer());
+  m_stack->addWidget(buildStore());
+  m_stack->addWidget(buildShopping());
+  m_stack->addWidget(buildRecipes());
   m_stack->addWidget(buildApps());
   m_stack->addWidget(buildSettings());
   m_stack->addWidget(buildPower());
@@ -619,11 +625,9 @@ QWidget *ShellWindow::buildNav() {
   row->addStretch(1);
 
   const QStringList labels = {
-      QStringLiteral("Home"),
-      QStringLiteral("Timer"),
-      QStringLiteral("Apps"),
-      QStringLiteral("Settings"),
-      QStringLiteral("Power"),
+      QStringLiteral("Home"),   QStringLiteral("Timer"), QStringLiteral("Store"),
+      QStringLiteral("List"),   QStringLiteral("Recipes"), QStringLiteral("Apps"),
+      QStringLiteral("Settings"), QStringLiteral("Power"),
   };
   for (const QString &label : labels) {
     row->addWidget(makeNavButton(label));
@@ -952,8 +956,16 @@ void ShellWindow::loadRoute() {
   }
 
   const QString open = QString::fromLatin1(qgetenv("HAVEN_OPEN")).trimmed().toLower();
-  if (!forceWizard && m_profile.isComplete() && open == QLatin1String("timer")) {
-    setPage(1);
+  if (!forceWizard && m_profile.isComplete()) {
+    if (open == QLatin1String("timer")) {
+      setPage(1);
+    } else if (open == QLatin1String("store")) {
+      setPage(2);
+    } else if (open == QLatin1String("shopping")) {
+      setPage(3);
+    } else if (open == QLatin1String("recipes")) {
+      setPage(4);
+    }
   }
   if (qEnvironmentVariableIsSet("HAVEN_TIMER_START")) {
     m_timerDuration = 300;
@@ -1128,6 +1140,169 @@ QWidget *ShellWindow::buildTimer() {
   layout->addLayout(controls);
   layout->addStretch(1);
   refreshTimerUi();
+  return page;
+}
+
+QWidget *ShellWindow::buildStore() {
+  auto *page = new QWidget;
+  auto *layout = beginPage(page, QStringLiteral("Haven Store"));
+
+  auto *body = new QLabel(QStringLiteral(
+      "Offline. This list is written into the prototype. It is not stock, it has no prices, "
+      "and this page cannot take an order."));
+  body->setObjectName(QStringLiteral("statusLine"));
+  body->setWordWrap(true);
+  body->setFont(interFont(18));
+  layout->addWidget(body, 0, Qt::AlignLeft);
+
+  const QStringList samples = {
+      QStringLiteral("Lamp"),
+      QStringLiteral("Plug"),
+      QStringLiteral("Sensor"),
+  };
+  for (const QString &name : samples) {
+    auto *row = new QFrame;
+    row->setObjectName(QStringLiteral("slot"));
+    auto *rowLayout = new QHBoxLayout(row);
+    rowLayout->setContentsMargins(28, 16, 28, 16);
+    auto *title = new QLabel(name);
+    title->setFont(interFont(22, QFont::Medium));
+    auto *mark = new QLabel(QStringLiteral("Sample"));
+    mark->setFont(interFont(16));
+    mark->setStyleSheet(QStringLiteral("color: #c4b49a;"));
+    rowLayout->addWidget(title);
+    rowLayout->addStretch(1);
+    rowLayout->addWidget(mark);
+    layout->addWidget(row);
+  }
+  layout->addStretch(1);
+  return page;
+}
+
+void ShellWindow::refreshShopping() {
+  if (m_shoppingRows == nullptr) {
+    return;
+  }
+  while (QLayoutItem *item = m_shoppingRows->takeAt(0)) {
+    if (QWidget *widget = item->widget()) {
+      widget->deleteLater();
+    }
+    delete item;
+  }
+  if (m_shopping.isEmpty()) {
+    auto *empty = new QLabel(QStringLiteral("Nothing saved on this computer."));
+    empty->setFont(interFont(18));
+    empty->setStyleSheet(QStringLiteral("color: #c4b49a;"));
+    m_shoppingRows->addWidget(empty, 0, Qt::AlignLeft);
+    return;
+  }
+  for (int i = 0; i < m_shopping.size(); ++i) {
+    auto *row = new QFrame;
+    row->setObjectName(QStringLiteral("slot"));
+    auto *rowLayout = new QHBoxLayout(row);
+    rowLayout->setContentsMargins(28, 8, 16, 8);
+    auto *title = new QLabel(m_shopping.at(i));
+    title->setFont(interFont(20, QFont::Medium));
+    auto *remove = new QPushButton(QStringLiteral("Remove"));
+    remove->setFont(interFont(18, QFont::Medium));
+    connect(remove, &QPushButton::clicked, this, [this, i] { removeShoppingItem(i); });
+    rowLayout->addWidget(title, 1);
+    rowLayout->addWidget(remove);
+    m_shoppingRows->addWidget(row);
+  }
+}
+
+void ShellWindow::addShoppingItem() {
+  if (m_shoppingEntry == nullptr) {
+    return;
+  }
+  const QString item = m_shoppingEntry->text().trimmed();
+  if (item.isEmpty()) {
+    return;
+  }
+  m_shopping.push_back(item);
+  m_shoppingEntry->clear();
+  Profile::saveShopping(m_shopping);
+  refreshShopping();
+}
+
+void ShellWindow::removeShoppingItem(int index) {
+  if (index < 0 || index >= m_shopping.size()) {
+    return;
+  }
+  m_shopping.removeAt(index);
+  Profile::saveShopping(m_shopping);
+  refreshShopping();
+}
+
+QWidget *ShellWindow::buildShopping() {
+  auto *page = new QWidget;
+  auto *layout = beginPage(page, QStringLiteral("Shopping"));
+
+  auto *body = new QLabel(QStringLiteral(
+      "Offline. Items stay on this computer. Nothing is ordered, and nothing is sent."));
+  body->setObjectName(QStringLiteral("statusLine"));
+  body->setWordWrap(true);
+  body->setFont(interFont(18));
+  layout->addWidget(body, 0, Qt::AlignLeft);
+
+  auto *entryRow = new QHBoxLayout;
+  entryRow->setSpacing(12);
+  m_shoppingEntry = new QLineEdit;
+  m_shoppingEntry->setPlaceholderText(QStringLiteral("Add an item"));
+  m_shoppingEntry->setMinimumHeight(64);
+  auto *add = new QPushButton(QStringLiteral("Add"));
+  add->setFont(interFont(20, QFont::Medium));
+  entryRow->addWidget(m_shoppingEntry, 1);
+  entryRow->addWidget(add);
+  layout->addLayout(entryRow);
+  connect(add, &QPushButton::clicked, this, [this] { addShoppingItem(); });
+  connect(m_shoppingEntry, &QLineEdit::returnPressed, this, [this] { addShoppingItem(); });
+
+  m_shopping = Profile::loadShopping();
+  auto *rows = new QWidget;
+  m_shoppingRows = new QVBoxLayout(rows);
+  m_shoppingRows->setContentsMargins(0, 0, 0, 0);
+  m_shoppingRows->setSpacing(12);
+  layout->addWidget(rows);
+  layout->addStretch(1);
+  refreshShopping();
+  return page;
+}
+
+QWidget *ShellWindow::buildRecipes() {
+  auto *page = new QWidget;
+  auto *layout = beginPage(page, QStringLiteral("Recipes"));
+
+  auto *body = new QLabel(QStringLiteral(
+      "Offline. These recipes are written into the prototype. There is no account and no meal planner."));
+  body->setObjectName(QStringLiteral("statusLine"));
+  body->setWordWrap(true);
+  body->setFont(interFont(18));
+  layout->addWidget(body, 0, Qt::AlignLeft);
+
+  const QList<QPair<QString, QString>> recipes = {
+      {QStringLiteral("Porridge"), QStringLiteral("Oats, water, a pinch of salt. Heat until thick.")},
+      {QStringLiteral("Toast"), QStringLiteral("Bread, toasted.")},
+      {QStringLiteral("Soup"), QStringLiteral("Water, vegetables, salt. Simmer.")},
+  };
+  for (const auto &recipe : recipes) {
+    auto *card = new QFrame;
+    card->setObjectName(QStringLiteral("slot"));
+    auto *cardLayout = new QVBoxLayout(card);
+    cardLayout->setContentsMargins(28, 18, 28, 18);
+    cardLayout->setSpacing(6);
+    auto *title = new QLabel(recipe.first);
+    title->setFont(interFont(22, QFont::Medium));
+    auto *detail = new QLabel(recipe.second);
+    detail->setWordWrap(true);
+    detail->setFont(interFont(16));
+    detail->setStyleSheet(QStringLiteral("color: #c4b49a;"));
+    cardLayout->addWidget(title);
+    cardLayout->addWidget(detail);
+    layout->addWidget(card);
+  }
+  layout->addStretch(1);
   return page;
 }
 

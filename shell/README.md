@@ -4,6 +4,8 @@ Desktop UI prototype, not a flashable OS image. One Qt 6 Widgets process paints 
 
 The clock and date use the computer's clock. The painted sky follows that clock and is checked about once a minute. Weather, devices, battery, Wi-Fi, and Matter are not connected. The first launch asks for a home name and a room, then skips Wi-Fi, Matter, and AI because they are not available in this desktop prototype. Settings can change the saved name and room. Timer is an offline countdown. Settings also has a Weather look control. Off leaves the weather card as Not connected. A preview only changes the painted sky.
 
+Haven Store is a sample list written into the prototype. It has no prices and cannot take an order. Shopping is a list saved on this computer. Recipes are three notes written into the prototype. None of those pages use the network.
+
 The program does not choose a Qt platform plugin. A desktop session uses the normal X11 or Wayland plugin. Set `QT_QPA_PLATFORM` only from the environment (for example `offscreen` in the smoke test below).
 
 ## Build

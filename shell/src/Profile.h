@@ -11,4 +11,7 @@ struct Profile {
   static QStringList rooms();
   static Profile load();
   void save() const;
+
+  static QStringList loadShopping();
+  static void saveShopping(const QStringList &items);
 };

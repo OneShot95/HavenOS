@@ -47,3 +47,32 @@ void Profile::save() const {
     store.sync();
   });
 }
+
+QStringList Profile::loadShopping() {
+  QStringList items;
+  withStore([&items](QSettings &store) {
+    items = store.value(QStringLiteral("shopping")).toStringList();
+  });
+  QStringList cleaned;
+  for (const QString &item : items) {
+    const QString trimmed = item.trimmed();
+    if (!trimmed.isEmpty()) {
+      cleaned.push_back(trimmed);
+    }
+  }
+  return cleaned;
+}
+
+void Profile::saveShopping(const QStringList &items) {
+  QStringList cleaned;
+  for (const QString &item : items) {
+    const QString trimmed = item.trimmed();
+    if (!trimmed.isEmpty()) {
+      cleaned.push_back(trimmed);
+    }
+  }
+  withStore([&cleaned](QSettings &store) {
+    store.setValue(QStringLiteral("shopping"), cleaned);
+    store.sync();
+  });
+}
