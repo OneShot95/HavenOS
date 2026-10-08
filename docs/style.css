@@ -19,6 +19,10 @@ body {
   font: 1.05rem/1.55 "Segoe UI", "Helvetica Neue", sans-serif;
 }
 
+a {
+  color: var(--ink);
+}
+
 main {
   max-width: 38rem;
   margin: 0 auto;
